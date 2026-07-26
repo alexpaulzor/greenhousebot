@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.DS_Store
+hardware_out/
+# KiCad backups / autosave
+*-bak
+*.kicad_pcb-bak
+_autosave-*
+fp-info-cache
+*-drc.rpt
+
+# KiCad lock files
+*.lck
+~*.lck

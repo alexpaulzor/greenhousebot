@@ -1,0 +1,69 @@
+flowchart TB
+    subgraph PWR["12 V power in (fused)"]
+        PSU["12 V PSU"] --> FUSE["Fuse 7.5 A"]
+        FUSE --> C12["Bulk cap<br/>1000 µF 25 V 105°C"]
+    end
+
+    FUSE -->|12V| BUCK["Buck 12→5.1 V<br/>≥3 A"]
+    FUSE -->|12V| VALVE_C["Valve relay COM"]
+    FUSE -->|12V| HB["BTS7960<br/>H-bridge (B+)"]
+
+    BUCK -->|5.1V| SCH["Schottky<br/>SS14"]
+    SCH -->|5V| VSYS["Pico VSYS (39)"]
+    BUCK -->|5V| LCDV["LCD VCC (5V)"]
+
+    subgraph PICO["Raspberry Pi Pico 2 W"]
+        VSYS
+        P3V3["3V3 OUT (36)"]
+        GP4["GP4 SDA"]
+        GP5["GP5 SCL"]
+        GP15["GP15"]
+        GP16["GP16"]
+        GP17["GP17"]
+        GP18["GP18"]
+        GP19["GP19"]
+        GP20["GP20"]
+        GP10["GP10"]
+        GP11["GP11"]
+        GP12["GP12"]
+        GP26["GP26/ADC0"]
+    end
+
+    P3V3 -->|3V3| LS_LV["Level shifter LV"]
+    P3V3 -->|3V3| RLYL["2-ch relay VCC (3.3V logic)"]
+    P3V3 -->|3V3| DHTP["DHT22 VCC + 10k pull-up"]
+    P3V3 -->|3V3| BTNP["Button pull-ups (internal)"]
+
+    GP4 --> LS_LV
+    GP5 --> LS_LV
+    LS_LV <-->|"HV 5V"| LS_HV["Level shifter HV (optional)"]
+    LS_HV --> LCD["1602 LCD<br/>PCF8574 backpack"]
+
+    GP15 --> DHT["DHT22/AM2302"]
+    DHTP --> DHT
+
+    GP16 --> RLY1["Relay K1 ch.1<br/>(mister valve)"]
+    GP17 --> RLY2["Relay K1 ch.2<br/>(mains trigger)"]
+    RLYL --> RLY1
+    RLYL --> RLY2
+    VALVE_C --> RLY1
+    RLY1 -->|"12V switched"| VALVE["12 V solenoid valve<br/>+ flyback diode"]
+    RLY2 -->|"dry contact"| EXTBOX["EXTERNAL mains<br/>outlet box (fans)"]
+
+    GP18 --> HB
+    GP19 --> HB
+    GP20 --> HB
+    HB -->|"M+/M-"| ACT["12 V linear actuator<br/>(window)"]
+    HB -->|"IS"| GP26
+
+    GP10 --> BTN1["Button +"]
+    GP11 --> BTN2["Button -"]
+    GP12 --> BTN3["Button OK"]
+    BTN1 --> GND1["GND"]
+    BTN2 --> GND1
+    BTN3 --> GND1
+
+    classDef ext fill:#fdd,stroke:#c00;
+    classDef pwr fill:#ffe,stroke:#aa0;
+    class EXTBOX ext;
+    class PSU,FUSE,BUCK,C12 pwr;

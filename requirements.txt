@@ -1,0 +1,8 @@
+affine==2.4.0
+cairocffi==1.7.1
+CairoSVG==2.9.0
+ezdxf==1.4.4
+Markdown==3.10.2
+qrcode==8.2
+shapely==2.1.2
+svgwrite==1.4.3

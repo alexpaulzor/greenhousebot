@@ -1,0 +1,134 @@
+flowchart LR
+  subgraph PSU["12V 5A PSU"]
+    PSU_V["+12V"]
+    PSU_G["GND"]
+  end
+
+  subgraph BUCK["Buck 12->5V (U2)"]
+    B_IN["IN+"]
+    B_ING["IN-"]
+    B_OUT["OUT+ = 5V"]
+    B_OUTG["OUT-"]
+  end
+
+  subgraph PICO["Pico 2 W (socketed)"]
+    P_VSYS["VSYS p39"]
+    P_3V3["3V3 OUT p36"]
+    P_GND["GND p38"]
+    P_SDA["GP4 SDA p6"]
+    P_SCL["GP5 SCL p7"]
+    P_R1["GP16 p21"]
+    P_R2["GP17 p22"]
+    P_RP["GP18 p24"]
+    P_LP["GP19 p25"]
+    P_EN["GP20 p26"]
+    P_IS["GP26 ADC0 p31"]
+    P_BP["GP10 p14"]
+    P_BM["GP11 p15"]
+    P_BOK["GP12 p16"]
+  end
+
+  subgraph AHT["AHT21 (I2C 0x38)"]
+    A_V["VIN 3V3"]
+    A_G["GND"]
+    A_SDA["SDA"]
+    A_SCL["SCL"]
+  end
+
+  subgraph LCD["1602 LCD + PCF8574 (I2C 0x27)"]
+    L_V["VCC 3V3"]
+    L_G["GND"]
+    L_SDA["SDA"]
+    L_SCL["SCL"]
+  end
+
+  subgraph RLY["2-ch relay 3.3V (K1)"]
+    K_V["VCC 3V3"]
+    K_G["GND"]
+    K_1["IN1 valve"]
+    K_2["IN2 mains"]
+    K_C1["CH1 COM"]
+    K_NO1["CH1 NO"]
+    K_C2["CH2 COM"]
+    K_NO2["CH2 NO"]
+  end
+
+  subgraph HB["BTS7960 H-bridge (U3)"]
+    H_B["B+ 12V"]
+    H_BG["B-"]
+    H_VCC["VCC 3V3 logic"]
+    H_G["GND"]
+    H_RP["RPWM"]
+    H_LP["LPWM"]
+    H_EN["R_EN + L_EN"]
+    H_IS["R_IS + L_IS"]
+    H_MP["M+"]
+    H_MG["M-"]
+  end
+
+  subgraph BTN["Buttons (screw terminals)"]
+    BTN_P["+ btn"]
+    BTN_M["- btn"]
+    BTN_OK["OK btn"]
+    BTN_G["common GND"]
+  end
+
+  VALVE["12V valve"]
+  ACT["window actuator"]
+  MAINS["external mains box trigger IN"]
+
+  %% ---- 12V rail ----
+  PSU_V --> B_IN
+  PSU_V --> H_B
+  PSU_V --> K_C1
+  PSU_G --> B_ING
+  PSU_G --> H_BG
+
+  %% ---- 5V rail ----
+  B_OUT --> P_VSYS
+  B_OUTG --> PSU_G
+
+  %% ---- 3V3 rail ----
+  P_3V3 --> A_V
+  P_3V3 --> L_V
+  P_3V3 --> K_V
+  P_3V3 --> H_VCC
+
+  %% ---- GND (common) ----
+  P_GND --- PSU_G
+  P_GND --- A_G
+  P_GND --- L_G
+  P_GND --- K_G
+  P_GND --- H_G
+  P_GND --- BTN_G
+
+  %% ---- I2C bus (3.3V) ----
+  P_SDA --- A_SDA
+  P_SDA --- L_SDA
+  P_SCL --- A_SCL
+  P_SCL --- L_SCL
+
+  %% ---- relay logic ----
+  P_R1 --> K_1
+  P_R2 --> K_2
+
+  %% ---- valve (12V switched by CH1) ----
+  K_NO1 --> VALVE
+  VALVE --> PSU_G
+
+  %% ---- mains trigger (CH2 dry contact) ----
+  K_C2 --> MAINS
+  K_NO2 --> MAINS
+
+  %% ---- H-bridge control ----
+  P_RP --> H_RP
+  P_LP --> H_LP
+  P_EN --> H_EN
+  H_IS --> P_IS
+  H_MP --> ACT
+  H_MG --> ACT
+
+  %% ---- buttons (active-low to GND, internal pull-ups) ----
+  P_BP --- BTN_P
+  P_BM --- BTN_M
+  P_BOK --- BTN_OK
