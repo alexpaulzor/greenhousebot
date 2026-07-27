@@ -19,6 +19,7 @@ class FakeActions:
             "window": "closed",
             "fans": False,
             "mister": False,
+            "auto": False,
             "time": 1000,
         }
         self.calls = []
@@ -29,8 +30,26 @@ class FakeActions:
     def snapshot(self):
         return {
             "samples": [
-                {"t": 1000, "in_t": 24.0, "in_h": 55, "out_t": 15.0, "out_h": 80},
-                {"t": 1060, "in_t": None, "in_h": None, "out_t": 15.5, "out_h": 79},
+                {
+                    "t": 1000,
+                    "in_t": 24.0,
+                    "in_h": 55,
+                    "out_t": 15.0,
+                    "out_h": 80,
+                    "fans": 1,
+                    "mist": 0,
+                    "win": 1,
+                },
+                {
+                    "t": 1060,
+                    "in_t": None,
+                    "in_h": None,
+                    "out_t": 15.5,
+                    "out_h": 79,
+                    "fans": 0,
+                    "mist": 0,
+                    "win": 0,
+                },
             ],
             "events": [
                 {
@@ -59,6 +78,11 @@ class FakeActions:
     def mister(self, a):
         self.calls.append(("mister", a))
         self.state["mister"] = not self.state["mister"]
+        return self.status()
+
+    def auto(self, a):
+        self.calls.append(("auto", a))
+        self.state["auto"] = not self.state["auto"]
         return self.status()
 
 
@@ -98,9 +122,9 @@ def test_samples_csv():
     st, ct, body = W.route("GET", "/data.csv", FakeActions())
     assert st == 200 and ct == "text/csv"
     lines = body.strip().split("\n")
-    assert lines[0] == "t,in_t,in_h,out_t,out_h"
-    assert lines[1] == "1000,24.0,55,15.0,80"
-    assert lines[2] == "1060,,,15.5,79"  # None -> empty cells
+    assert lines[0] == "t,in_t,in_h,out_t,out_h,fans,mist,win"
+    assert lines[1] == "1000,24.0,55,15.0,80,1,0,1"
+    assert lines[2] == "1060,,,15.5,79,0,0,0"  # None sensor -> empty cells
 
 
 def test_events_csv():
@@ -111,10 +135,18 @@ def test_events_csv():
     assert "web,fans,toggle" in lines[1]
 
 
-def test_status_has_outdoor():
+def test_status_has_outdoor_and_auto():
     st, ct, body = W.route("GET", "/status", FakeActions())
     d = json.loads(body)
-    assert "out_temp" in d and "out_humid" in d
+    assert "out_temp" in d and "out_humid" in d and "auto" in d
+
+
+def test_auto_toggle():
+    a = FakeActions()
+    st, ct, body = W.route("POST", "/auto", a)
+    assert st == 200
+    assert json.loads(body)["auto"] is True
+    assert a.calls == [("auto", None)]
 
 
 def test_unknown_404():

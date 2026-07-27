@@ -84,8 +84,20 @@ class RotatingCsv:
         self.fs.rename(self.path, "{}.1".format(self.path))
 
 
-SAMPLE_HEADER = "t,in_t,in_h,out_t,out_h"
+SAMPLE_HEADER = "t,in_t,in_h,out_t,out_h,fans,mist,win"
 EVENT_HEADER = "t,src,dev,act,in_t,in_h,out_t,out_h"
+
+
+def _b(v):
+    """bool -> 1/0, None stays None (empty CSV cell)."""
+    return None if v is None else (1 if v else 0)
+
+
+def _win_code(window):
+    """Window status string -> 1 if open/opening else 0; None stays None."""
+    if window is None:
+        return None
+    return 1 if window in ("open", "opening") else 0
 
 
 class DataLog:
@@ -100,18 +112,28 @@ class DataLog:
         self._sample_sink = sample_sink
         self._event_sink = event_sink
 
-    def sample(self, in_t, in_h, out_t=None, out_h=None):
-        """Record a periodic reading from indoor (+ optional outdoor) sensors."""
+    def sample(
+        self, in_t, in_h, out_t=None, out_h=None, fans=None, mist=None, window=None
+    ):
+        """Record a periodic reading + actuator state at that instant.
+        Actuator state lets the chart draw on/open bars and enriches analysis.
+        fans/mist are bools (or None); window is "open"/"closed"/... (or None)."""
+        win = _win_code(window)
         row = {
             "t": self._now(),
             "in_t": in_t,
             "in_h": in_h,
             "out_t": out_t,
             "out_h": out_h,
+            "fans": _b(fans),
+            "mist": _b(mist),
+            "win": win,
         }
         self.samples.add(row)
         if self._sample_sink:
-            self._sample_sink.append([row["t"], in_t, in_h, out_t, out_h])
+            self._sample_sink.append(
+                [row["t"], in_t, in_h, out_t, out_h, row["fans"], row["mist"], win]
+            )
 
     def event(
         self, source, device, action, in_t=None, in_h=None, out_t=None, out_h=None

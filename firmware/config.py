@@ -56,6 +56,12 @@ LCD_ROWS = 2
 SAMPLE_MS = 2000  # how often to read the sensor + refresh LCD
 LOG_SAMPLE_MS = 60_000  # how often to push a temp/humidity sample to the ring buffer
 
+# --- Automation ----------------------------------------------------------
+# Whether the control rules run at boot. Toggle at runtime via the web (POST
+# /auto) or a long-press gesture later. When off, the system is fully manual.
+AUTOMATION_DEFAULT = False  # ship manual-first; flip on from the web when ready
+AUTO_TICK_MS = 5000  # how often the control rules evaluate
+
 # --- Data log sizes (in-RAM ring buffers) --------------------------------
 SAMPLE_RING = 240  # ~4 h at 60 s/sample
 EVENT_RING = 100  # last N interventions (button/web actuations)

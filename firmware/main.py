@@ -23,6 +23,7 @@ from lcd import LCD
 from actuators import Relay, Window
 from buttons import Buttons, WINDOW, FANS, MISTER
 from datalog import DataLog
+from control import Controller
 import wifi
 
 
@@ -30,7 +31,7 @@ class Actions:
     """Shared actuation + logging surface for buttons and web. Also implements the
     interface webapp.route() expects: status(), snapshot(), window/fans/mister(a)."""
 
-    def __init__(self, window, fans, valve, log, clock):
+    def __init__(self, window, fans, valve, log, clock, automation=False):
         self._win = window
         self._fans = fans
         self._valve = valve
@@ -40,6 +41,7 @@ class Actions:
         self.humid = None
         self.out_temp = None
         self.out_humid = None
+        self.automation = automation
 
     # -- called by the loop after each sensor read --
     def set_readings(self, temp, humid, out_temp=None, out_humid=None):
@@ -56,6 +58,7 @@ class Actions:
             "window": self._win.status(),
             "fans": self._fans.is_on,
             "mister": self._valve.is_on,
+            "auto": self.automation,
             "time": self._clock(),
         }
 
@@ -95,6 +98,39 @@ class Actions:
             relay.off()
         else:
             relay.set(not relay.is_on)
+
+    # -- automation on/off (web /auto) --
+    def auto(self, a=None):
+        if a == "on":
+            self.automation = True
+        elif a == "off":
+            self.automation = False
+        else:
+            self.automation = not self.automation
+        self._log.event(
+            "web", "automation", "on" if self.automation else "off", *self._ctx()
+        )
+        return self.status()
+
+    # -- apply a control.Decision (called by the loop when automation is on) --
+    def apply_decision(self, decision):
+        """Drive actuators from the controller, logging only actual CHANGES
+        (source='auto') so the event log stays meaningful, not spammy."""
+        want_win_open = decision.window == "open"
+        is_open = self._win.status() in ("open", "opening")
+        if want_win_open != is_open and not self._win.moving:
+            (self._win.command_open if want_win_open else self._win.command_close)()
+            self._log.event("auto", "window", decision.window, *self._ctx())
+        if decision.fans != self._fans.is_on:
+            self._fans.set(decision.fans)
+            self._log.event(
+                "auto", "fans", "on" if decision.fans else "off", *self._ctx()
+            )
+        if decision.mist != self._valve.is_on:
+            self._valve.set(decision.mist)
+            self._log.event(
+                "auto", "mister", "on" if decision.mist else "off", *self._ctx()
+            )
 
 
 def _clock():
@@ -159,7 +195,8 @@ def main():
             print("log persistence disabled:", e)
 
     log = DataLog(_clock, C.SAMPLE_RING, C.EVENT_RING, sample_sink, event_sink)
-    actions = Actions(window, fans, valve, log, _clock)
+    actions = Actions(window, fans, valve, log, _clock, C.AUTOMATION_DEFAULT)
+    controller = Controller()
 
     lcd.line(0, "Greenhouse")
     lcd.line(1, "starting...")
@@ -182,6 +219,7 @@ def main():
 
     last_sample = time.ticks_ms()
     last_log = time.ticks_ms()
+    last_auto = time.ticks_ms()
 
     while True:
         # window move progresses without blocking
@@ -216,10 +254,36 @@ def main():
             actions.set_readings(temp, humid, out_temp, out_humid)
             _draw(lcd, actions)
 
-            # periodic sample into the ring buffer (+ flash persistence)
+            # periodic sample into the ring buffer (+ flash persistence),
+            # including current actuator state so the chart can draw on/open bars.
             if time.ticks_diff(now, last_log) >= C.LOG_SAMPLE_MS:
                 last_log = now
-                log.sample(temp, humid, out_temp, out_humid)
+                log.sample(
+                    temp,
+                    humid,
+                    out_temp,
+                    out_humid,
+                    fans=fans.is_on,
+                    mist=valve.is_on,
+                    window=window.status(),
+                )
+
+        # automation tick: run the rules and apply their decision
+        if actions.automation and time.ticks_diff(now, last_auto) >= C.AUTO_TICK_MS:
+            dt_s = time.ticks_diff(now, last_auto) / 1000.0
+            last_auto = now
+            lt = wifi.local_now(C.TZ_OFFSET_S)  # (Y, M, D, hh, mm, ss, ...)
+            decision = controller.tick(
+                actions.temp,
+                actions.humid,
+                actions.out_temp,
+                actions.out_humid,
+                hour=lt[3],
+                month=lt[1],
+                dt_s=dt_s,
+            )
+            actions.apply_decision(decision)
+            _draw(lcd, actions)
 
         wdt.feed()
         time.sleep_ms(20)

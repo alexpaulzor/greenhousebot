@@ -18,7 +18,7 @@ No automation yet — `control.py` is parked for the future two-sensor rules.
 | `webapp.py` | **pure** request router + HTML page | no | `tests/test_webapp.py` |
 | `datalog.py` | **pure** ring buffer + rotating-CSV persistence | no | `tests/test_datalog.py` |
 | `fsadapter.py` | flash FS adapter for datalog | yes | (fake in tests) |
-| `control.py` | **pure** automation brain (Maxillaria tenuifolia / WC, per `docs/RULES.md`) — PARKED, not wired in | no | `tests/test_control.py` |
+| `control.py` | **pure** automation brain (Maxillaria tenuifolia / WC, per `docs/RULES.md`) — wired in behind the `/auto` toggle | no | `tests/test_control.py` |
 | `main.py` | wiring + cooperative loop | yes | — |
 | `secrets.py` | WiFi creds (gitignored; copy from `secrets_example.py`) | — | — |
 
@@ -40,20 +40,33 @@ Set `OUTDOOR_ENABLED = False` in `config.py` if the outdoor unit isn't wired yet
 
 ## Web (LAN)
 
-- `GET /` — control page (readings in/out + status + toggle buttons)
-- `GET /status` — JSON snapshot
+- `GET /` — control page: in/out readings, actuator toggles, **automation on/off**, and a
+  **canvas timeline chart** (temp in/out + humidity in/out lines, plus fan/window/mister
+  state bars). No external JS libs — works with no internet.
+- `GET /status` — JSON snapshot (incl. `auto`)
 - `GET /data` — JSON of the in-RAM ring buffers (samples + events)
 - `GET /data.csv`, `GET /events.csv` — CSV for scraping/analysis
 - `POST /window|/fans|/mister` — toggle (or `?a=open|close|stop|on|off`)
+- `POST /auto` — toggle automation (or `?a=on|off`)
+
+## Automation
+
+- Off by default (`AUTOMATION_DEFAULT`); flip on from the web toggle when ready.
+- When on, the loop evaluates `control.py` every `AUTO_TICK_MS` using **local** time
+  (season + day/night) and applies the decision, logging only actual changes (`src=auto`).
+- Manual button/web actuations still work while auto is on (they log with their own
+  source); the next auto tick may move things back — turn automation off to hold a manual
+  state. (A future refinement: auto-pause on manual input.)
 
 ## Data logging
 
 - In-RAM ring buffers (`SAMPLE_RING`, `EVENT_RING`) always on — served via the web API.
 - **Bounded flash persistence** (`LOG_PERSIST`): appends to `logs/samples.csv` and
   `logs/events.csv`, rotating at `LOG_FILE_MAX_BYTES`, keeping `LOG_FILE_KEEP`
-  generations — so flash never fills. Samples carry indoor + outdoor readings; events
-  carry the sensor context at the moment of each actuation. This is the dataset to
-  scrape for later AI-driven automation rules.
+  generations — so flash never fills. **Samples** carry indoor + outdoor readings **plus
+  actuator state** (`fans,mist,win` as 1/0) so the chart can draw on/open bars and the
+  dataset is self-contained; **events** carry the sensor context at each actuation. This
+  is the dataset to scrape for later AI-driven automation rules.
 
 ## Flash to the Pico
 
