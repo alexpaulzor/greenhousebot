@@ -139,7 +139,7 @@ class DataLog:
         self, source, device, action, in_t=None, in_h=None, out_t=None, out_h=None
     ):
         """Record an intervention with the sensor context at that moment.
-        source: "button" | "web" | "system"; device: "window"|"fans"|"mister"."""
+        source: "manual" | "web" | "auto"; device: "window"|"fans"|"mister"."""
         row = {
             "t": self._now(),
             "src": source,

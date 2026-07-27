@@ -21,116 +21,11 @@ import config as C
 from aht21 import AHT21
 from lcd import LCD
 from actuators import Relay, Window
+from actions import Actions
 from buttons import Buttons, WINDOW, FANS, MISTER
 from datalog import DataLog
 from control import Controller
 import wifi
-
-
-class Actions:
-    """Shared actuation + logging surface for buttons and web. Also implements the
-    interface webapp.route() expects: status(), snapshot(), window/fans/mister(a)."""
-
-    def __init__(self, window, fans, valve, log, clock, automation=False):
-        self._win = window
-        self._fans = fans
-        self._valve = valve
-        self._log = log
-        self._clock = clock
-        self.temp = None
-        self.humid = None
-        self.out_temp = None
-        self.out_humid = None
-        self.automation = automation
-
-    # -- called by the loop after each sensor read --
-    def set_readings(self, temp, humid, out_temp=None, out_humid=None):
-        self.temp, self.humid = temp, humid
-        self.out_temp, self.out_humid = out_temp, out_humid
-
-    # -- status surface --
-    def status(self):
-        return {
-            "temp": self.temp,
-            "humid": self.humid,
-            "out_temp": self.out_temp,
-            "out_humid": self.out_humid,
-            "window": self._win.status(),
-            "fans": self._fans.is_on,
-            "mister": self._valve.is_on,
-            "auto": self.automation,
-            "time": self._clock(),
-        }
-
-    def snapshot(self):
-        return self._log.snapshot()
-
-    def _ctx(self):
-        return (self.temp, self.humid, self.out_temp, self.out_humid)
-
-    # -- actuations (source tags the log). a=None means toggle. --
-    def window(self, a=None, source="web"):
-        if a == "open":
-            self._win.command_open()
-        elif a == "close":
-            self._win.command_close()
-        elif a == "stop":
-            self._win.stop()
-        else:
-            self._win.toggle()
-        self._log.event(source, "window", a or "toggle", *self._ctx())
-        return self.status()
-
-    def fans(self, a=None, source="web"):
-        self._set_relay(self._fans, a)
-        self._log.event(source, "fans", a or "toggle", *self._ctx())
-        return self.status()
-
-    def mister(self, a=None, source="web"):
-        self._set_relay(self._valve, a)
-        self._log.event(source, "mister", a or "toggle", *self._ctx())
-        return self.status()
-
-    def _set_relay(self, relay, a):
-        if a == "on":
-            relay.on()
-        elif a == "off":
-            relay.off()
-        else:
-            relay.set(not relay.is_on)
-
-    # -- automation on/off (web /auto) --
-    def auto(self, a=None):
-        if a == "on":
-            self.automation = True
-        elif a == "off":
-            self.automation = False
-        else:
-            self.automation = not self.automation
-        self._log.event(
-            "web", "automation", "on" if self.automation else "off", *self._ctx()
-        )
-        return self.status()
-
-    # -- apply a control.Decision (called by the loop when automation is on) --
-    def apply_decision(self, decision):
-        """Drive actuators from the controller, logging only actual CHANGES
-        (source='auto') so the event log stays meaningful, not spammy."""
-        want_win_open = decision.window == "open"
-        is_open = self._win.status() in ("open", "opening")
-        if want_win_open != is_open and not self._win.moving:
-            (self._win.command_open if want_win_open else self._win.command_close)()
-            self._log.event("auto", "window", decision.window, *self._ctx())
-        if decision.fans != self._fans.is_on:
-            self._fans.set(decision.fans)
-            self._log.event(
-                "auto", "fans", "on" if decision.fans else "off", *self._ctx()
-            )
-        if decision.mist != self._valve.is_on:
-            self._valve.set(decision.mist)
-            self._log.event(
-                "auto", "mister", "on" if decision.mist else "off", *self._ctx()
-            )
 
 
 def _clock():
@@ -225,14 +120,14 @@ def main():
         # window move progresses without blocking
         window.service()
 
-        # buttons -> toggles (logged as source="button")
+        # buttons -> toggles (logged as source="manual")
         for ev in buttons.poll():
             if ev == WINDOW:
-                actions.window(None, source="button")
+                actions.window(None, source="manual")
             elif ev == FANS:
-                actions.fans(None, source="button")
+                actions.fans(None, source="manual")
             elif ev == MISTER:
-                actions.mister(None, source="button")
+                actions.mister(None, source="manual")
             _draw(lcd, actions)
 
         # web (non-blocking)

@@ -88,9 +88,9 @@ def test_sample_actuator_state_optional_and_coded():
 def test_event_with_context():
     clk = Clock()
     log = D.DataLog(clk, event_size=4)
-    log.event("button", "fans", "on", 25.0, 55, 12.0, 70)
+    log.event("manual", "fans", "on", 25.0, 55, 12.0, 70)
     e = log.events.items()[0]
-    assert e["src"] == "button" and e["act"] == "on" and e["out_t"] == 12.0
+    assert e["src"] == "manual" and e["act"] == "on" and e["out_t"] == 12.0
 
 
 def test_snapshot_shape():
