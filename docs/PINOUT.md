@@ -6,6 +6,8 @@ This is the single source of truth for pin assignments. Firmware follows this ta
 > **Two I2C buses.** The AHT21's I2C address (0x38) is fixed, so the **indoor** sensor
 > shares I2C0 with the LCD, and the **outdoor** sensor gets its own bus, **I2C1** (GP2/3).
 > Both run at 3.3 V; LCD at 3.3 V means the whole thing needs **no level shifter**.
+> The outdoor bus is a **long run (>3 m)** → twisted pair, **external 2.2 kΩ pull-ups at
+> the Pico end**, and I2C1 clocked at **50 kHz** (`I2C1_FREQ`). See `docs/WIRING.md`.
 
 ## Power rails
 

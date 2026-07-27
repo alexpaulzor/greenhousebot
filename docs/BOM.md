@@ -60,19 +60,20 @@ Prices are rough USD ballparks for hobby quantities; use them for sizing, not bu
 
 ## 4. External mains outlet box (mains stays HERE, not in the logic box)
 
-> ⚠️ **Mains AC. Do this in a separate, properly-rated enclosure. If you're not
-> confident wiring mains, use item 18b instead.** Follow local electrical code;
-> when in doubt, have it checked.
+> ⚠️ **Mains AC. Do this in a separate, properly-rated enclosure.** Follow local
+> electrical code; when in doubt, have it checked.
 
-Pick **one**:
+**Two-stage fan control (chosen design):** the 3V3 relay (item 5, CH2) closes a **dry
+contact** that sends a robust **12 V signal** over the long run to a **local AC SSR** at
+the mains enclosure, which switches the fan outlets. This avoids driving an SSR's DC
+input from 3.3 V over distance (flaky) and keeps mains out of the logic box. See
+`docs/WIRING.md` → "Fans: two-stage relay chain".
 
-- **18a. DIY switched outlet box** — metal or listed PVC outlet box + duplex receptacle +
-  proper strain relief/cable glands + a **mains-rated relay or SSR** (e.g. 10–15 A) driven
-  by the Pico's low-voltage trigger wire (item 5). Ground everything. Maintain creepage;
-  keep the low-voltage trigger physically separated from mains.
-- **18b. Commercial relay/smart outlet** — e.g. an IoT-free 12 V-triggered relay outlet,
-  or a smart plug the Pico toggles. Least DIY, safest. (Adds a dependency; loses local
-  offline control unless it's a hard-wired trigger type.)
+| # | Item | Qty | Notes |
+|---|------|-----|-------|
+| 18 | **AC solid-state relay (SSR)**, mains-rated 10–25 A, **DC input 3–32 V** | 1 | Mounted in/adjacent to the mains-rated fan enclosure. 12 V drives its input comfortably. Add a heatsink if near its current rating. |
+| 18b | *(alt)* Commercial 12 V-triggered relay outlet / smart plug | — | Least-DIY substitute for items 18 + the outlet box. |
+| — | Mains-rated outlet box + duplex receptacle + glands | 1 | Houses the SSR + fan outlets; grounded, to code. |
 
 ## 5. Housing & UI hardware
 
@@ -99,9 +100,14 @@ Build is terminal-block / lever-nut based. See `docs/WIRING.md` for the full map
 | 26 | **Wago 221 lever-nuts** (mix of 2/3/5-way) | ~6 | Fan-out for GND, 3V3, 12V buses. Reopenable, humidity-tolerant. |
 | 27 | Hookup wire, 18 AWG (power/motor) / 22–24 AWG (signal) | set | Ferrules recommended for screw terminals. |
 | 28 | Dupont / ferruled leads for module terminals | set | AHT21, LCD, relay, buck, BTS7960 headers. |
+| 29 | **Cat5e / twisted-pair cable** for the outdoor sensor run (>3 m) | 1 | Twisted pairs keep I2C capacitance low; thin conductors are fine (sensor draws ~1 mA). |
+| 30 | **2.2 kΩ resistors** ×2 (I2C1 pull-ups) | 2 | SDA→3V3 and SCL→3V3 **at the Pico end** — required for the long outdoor bus. |
+| 31 | 18 AWG 2-conductor outdoor cable (fan SSR run) | 1 | Carries the switched 12 V signal from relay CH2 to the local AC SSR. |
+| 32 | *(if needed)* P82B715 I2C extender pair | 0–1 | Only if the outdoor bus is flaky at length; drives tens of metres. |
 
 > Nothing sensitive is soldered: Pico socketed in the expander; modules wire to their
-> existing headers/terminals.
+> existing headers/terminals. (The two 2.2 kΩ pull-ups are the only discrete parts — land
+> them in a lever-nut or a screw terminal, no soldering needed.)
 
 ---
 

@@ -19,9 +19,12 @@ ADDR_LCD = 0x27  # try 0x3F if 0x27 doesn't respond
 
 # --- I2C bus 1: OUTDOOR AHT21 (own bus — AHT21 addr 0x38 is fixed, so two of
 #     them cannot share one bus; the outdoor unit gets its own I2C peripheral) --
+# This bus runs a LONG cable (>3 m). Use a twisted pair for SDA/SCL, external
+# ~2.2 kΩ pull-ups at the Pico end, and a slower clock for capacitance margin.
 I2C1_ID = 1
 PIN_SDA1 = 2  # GP2  (physical 4)
 PIN_SCL1 = 3  # GP3  (physical 5)
+I2C1_FREQ = 50_000  # half-speed for the long outdoor run (more capacitance margin)
 OUTDOOR_ENABLED = True  # set False if the outdoor sensor isn't wired yet
 
 # --- Relays (native 3.3 V, active-high IN on most 2-ch boards) ------------

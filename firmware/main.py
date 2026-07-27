@@ -52,7 +52,7 @@ def main():
     if C.OUTDOOR_ENABLED:
         try:
             i2c1 = I2C(
-                C.I2C1_ID, sda=Pin(C.PIN_SDA1), scl=Pin(C.PIN_SCL1), freq=C.I2C_FREQ
+                C.I2C1_ID, sda=Pin(C.PIN_SDA1), scl=Pin(C.PIN_SCL1), freq=C.I2C1_FREQ
             )
             print("I2C1 devices:", [hex(a) for a in i2c1.scan()])
             out_sensor = AHT21(i2c1, C.ADDR_AHT21)
