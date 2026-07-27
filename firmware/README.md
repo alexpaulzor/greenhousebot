@@ -18,7 +18,7 @@ No automation yet — `control.py` is parked for the future two-sensor rules.
 | `webapp.py` | **pure** request router + HTML page | no | `tests/test_webapp.py` |
 | `datalog.py` | **pure** ring buffer + rotating-CSV persistence | no | `tests/test_datalog.py` |
 | `fsadapter.py` | flash FS adapter for datalog | yes | (fake in tests) |
-| `control.py` | **pure** automation brain — PARKED, not wired in | no | `tests/test_control.py` |
+| `control.py` | **pure** automation brain (Maxillaria tenuifolia / WC, per `docs/RULES.md`) — PARKED, not wired in | no | `tests/test_control.py` |
 | `main.py` | wiring + cooperative loop | yes | — |
 | `secrets.py` | WiFi creds (gitignored; copy from `secrets_example.py`) | — | — |
 

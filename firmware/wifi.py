@@ -48,3 +48,16 @@ def sync_time(host="pool.ntp.org"):
     except Exception as e:
         print("ntp: sync failed", e)
         return False
+
+
+def local_now(tz_offset_s):
+    """Return (year, month, day, hour, minute, second) in LOCAL time.
+
+    The RTC holds UTC (set by NTP). We apply the fixed tz offset here so the
+    controller's season (month) and day/night (hour) are correct for the site.
+    Works before NTP too — just returns the (wrong-but-monotonic) default epoch
+    shifted by the offset, so nothing crashes; season is simply off until sync.
+    """
+    import time
+
+    return time.localtime(time.time() + tz_offset_s)

@@ -98,7 +98,9 @@ class Actions:
 
 
 def _clock():
-    """Epoch seconds if NTP synced, else boot-relative seconds. Good enough for logs."""
+    """UTC epoch seconds (or boot-relative until NTP syncs). Log timestamps are
+    kept in UTC on purpose: unambiguous for later scraping/analysis, no DST gaps.
+    LOCAL time (for the controller's season/day-night) comes from wifi.local_now()."""
     return time.time()
 
 

@@ -75,4 +75,11 @@ HOSTNAME = "greenhouse"  # mDNS-ish hostname hint (best effort)
 # --- WiFi ----------------------------------------------------------------
 # Credentials live in secrets.py (gitignored). See secrets_example.py.
 NTP_HOST = "pool.ntp.org"
-TZ_OFFSET_S = 0  # set your local offset if you want local time in logs
+# Local time offset from UTC, in seconds. NTP gives UTC; the controller needs
+# LOCAL time so "night" and "season" are right for Walnut Creek.
+#   PST (winter, Nov-Mar) = -8 h = -28800
+#   PDT (summer, Mar-Nov) = -7 h = -25200   <- current default
+# A fixed offset is fine here: a 1-hour DST error only nudges the day/night edge
+# slightly and never affects the month/season boundary. Flip it twice a year if
+# you want day/night exact, or leave it — the rules are robust to ~1 h.
+TZ_OFFSET_S = -25200
