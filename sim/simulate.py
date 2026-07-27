@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "firmware"))
 
 import webapp  # noqa: E402
+import config as C  # noqa: E402
 from actions import Actions  # noqa: E402
 from datalog import DataLog  # noqa: E402
 from control import Controller  # noqa: E402
@@ -125,7 +126,13 @@ class Sim:
         self.valve = FakeRelay()
         self.log = DataLog(self._now, sample_size=1000, event_size=200)
         self.actions = Actions(
-            self.win, self.fans, self.valve, self.log, self._now, automation=False
+            self.win,
+            self.fans,
+            self.valve,
+            self.log,
+            self._now,
+            automation=False,
+            temp_unit=C.TEMP_UNIT,
         )
         self.controller = Controller()
         self.env = SimEnv(self.sim_t)

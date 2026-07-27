@@ -15,7 +15,9 @@ Every actuation is logged with a `source` tag so the event log distinguishes who
 
 
 class Actions:
-    def __init__(self, window, fans, valve, log, clock, automation=False):
+    def __init__(
+        self, window, fans, valve, log, clock, automation=False, temp_unit="C"
+    ):
         self._win = window
         self._fans = fans
         self._valve = valve
@@ -26,6 +28,7 @@ class Actions:
         self.out_temp = None
         self.out_humid = None
         self.automation = automation
+        self.temp_unit = temp_unit  # display hint for the web UI; readings stay C
 
     # -- called by the loop after each sensor read --
     def set_readings(self, temp, humid, out_temp=None, out_humid=None):
@@ -43,6 +46,7 @@ class Actions:
             "fans": self._fans.is_on,
             "mister": self._valve.is_on,
             "auto": self.automation,
+            "unit": self.temp_unit,
             "time": self._clock(),
         }
 

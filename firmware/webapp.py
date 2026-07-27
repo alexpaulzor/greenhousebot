@@ -96,8 +96,8 @@ small{color:#666}canvas{width:100%;height:260px;border:1px solid #ddd;border-rad
 .lg span{display:inline-flex;align-items:center;gap:4px}
 .sw{width:12px;height:12px;border-radius:2px;display:inline-block}</style></head><body>
 <h1>&#127793; Greenhouse</h1>
-<div class=r>in <span id=temp>--</span>&deg;C <span id=humid>--</span>%</div>
-<div class=r style="font-size:1.3rem;color:#557">out <span id=otemp>--</span>&deg;C <span id=ohumid>--</span>%</div>
+<div class=r>in <span id=temp>--</span>&deg;<span class=u>C</span> <span id=humid>--</span>%</div>
+<div class=r style="font-size:1.3rem;color:#557">out <span id=otemp>--</span>&deg;<span class=u>C</span> <span id=ohumid>--</span>%</div>
 <div class=row><span class=dev>Automation:</span>
 <button id=auto onclick="toggleAuto()">?</button></div>
 <div class=row><span class=dev>Window: <span class=s id=window>?</span></span>
@@ -121,8 +121,12 @@ small{color:#666}canvas{width:100%;height:260px;border:1px solid #ddd;border-rad
 <script>
 function $(id){return document.getElementById(id)}
 function n(v,d){return v==null?'--':v.toFixed(d)}
-function paint(s){$('temp').textContent=n(s.temp,1);$('humid').textContent=n(s.humid,0);
-$('otemp').textContent=n(s.out_temp,1);$('ohumid').textContent=n(s.out_humid,0);
+var UNIT='C';
+function cvt(c){return (c==null)?null:(UNIT=='F'?c*9/5+32:c);}  // C -> display unit
+function paint(s){UNIT=s.unit||'C';
+[].forEach.call(document.getElementsByClassName('u'),function(e){e.textContent=UNIT;});
+$('temp').textContent=n(cvt(s.temp),1);$('humid').textContent=n(s.humid,0);
+$('otemp').textContent=n(cvt(s.out_temp),1);$('ohumid').textContent=n(s.out_humid,0);
 $('window').textContent=s.window;$('fans').textContent=s.fans?'ON':'off';
 $('mister').textContent=s.mister?'ON':'off';
 var a=$('auto');a.textContent=s.auto?'ON (auto)':'OFF (manual)';
@@ -143,13 +147,17 @@ function drawChart(samples){
  var t0=samples[0].t,t1=samples[samples.length-1].t||t0+1;
  var tw=(t1-t0)||1;
  function X(t){return padL+(t-t0)/tw*(W-padL-padR);}
- // temp axis 0..40C on left; humidity 0..100 on right
- function YT(v){return plotB-(v/40)*(plotB-plotT);}
+ // temp axis in display unit (data is Celsius); humidity 0..100 on right.
+ // C: 0..40 ; F: 32..104 (= cvt(0)..cvt(40)). 5 gridlines either way.
+ var tLo=cvt(0),tHi=cvt(40);
+ function YT(v){return plotB-((cvt(v)-tLo)/(tHi-tLo))*(plotB-plotT);}
  function YH(v){return plotB-(v/100)*(plotB-plotT);}
  // gridlines
  x.strokeStyle='#eee';x.fillStyle='#999';x.font='10px sans-serif';
- for(var g=0;g<=40;g+=10){var y=YT(g);x.beginPath();x.moveTo(padL,y);x.lineTo(W-padR,y);x.stroke();
-  x.fillStyle='#d33';x.fillText(g,2,y+3);x.fillStyle='#36c';x.fillText((g/40*100)|0,W-padR+3,y+3);}
+ for(var k=0;k<=4;k++){var cV=k*10,y=YT(cV);
+  x.strokeStyle='#eee';x.beginPath();x.moveTo(padL,y);x.lineTo(W-padR,y);x.stroke();
+  x.fillStyle='#d33';x.fillText(Math.round(cvt(cV)),2,y+3);
+  x.fillStyle='#36c';x.fillText((k*25),W-padR+3,y+3);}
  function line(key,Y,color){x.strokeStyle=color;x.lineWidth=1.5;x.beginPath();var started=false;
   for(var i=0;i<samples.length;i++){var v=samples[i][key];if(v==null){started=false;continue;}
    var px=X(samples[i].t),py=Y(v);if(!started){x.moveTo(px,py);started=true;}else x.lineTo(px,py);}

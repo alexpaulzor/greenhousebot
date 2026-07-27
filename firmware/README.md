@@ -43,11 +43,20 @@ Set `OUTDOOR_ENABLED = False` in `config.py` if the outdoor unit isn't wired yet
 - `GET /` — control page: in/out readings, actuator toggles, **automation on/off**, and a
   **canvas timeline chart** (temp in/out + humidity in/out lines, plus fan/window/mister
   state bars). No external JS libs — works with no internet.
-- `GET /status` — JSON snapshot (incl. `auto`)
+- `GET /status` — JSON snapshot (incl. `auto`, `unit`). **`temp`/`out_temp` are always
+  Celsius**; `unit` ("F"/"C") tells the client how to display them.
 - `GET /data` — JSON of the in-RAM ring buffers (samples + events)
 - `GET /data.csv`, `GET /events.csv` — CSV for scraping/analysis
 - `POST /window|/fans|/mister` — toggle (or `?a=open|close|stop|on|off`)
 - `POST /auto` — toggle automation (or `?a=on|off`)
+
+## Temperature units
+
+Everything internal is **Celsius** — sensors, dew-point math, and the control rules
+(`RULES.md` setpoints). `TEMP_UNIT` in `config.py` (default `"F"`) only changes what
+humans see: the **LCD**, the **web readings**, and the **chart axis** convert to °F.
+The `/data` JSON and both CSV exports stay Celsius on purpose — one canonical unit for
+the dataset you'll scrape/analyze. Set `TEMP_UNIT = "C"` to display Celsius instead.
 
 ## Automation
 

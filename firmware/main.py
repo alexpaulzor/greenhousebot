@@ -90,7 +90,9 @@ def main():
             print("log persistence disabled:", e)
 
     log = DataLog(_clock, C.SAMPLE_RING, C.EVENT_RING, sample_sink, event_sink)
-    actions = Actions(window, fans, valve, log, _clock, C.AUTOMATION_DEFAULT)
+    actions = Actions(
+        window, fans, valve, log, _clock, C.AUTOMATION_DEFAULT, C.TEMP_UNIT
+    )
     controller = Controller()
 
     lcd.line(0, "Greenhouse")
@@ -196,13 +198,20 @@ def _draw(lcd, actions):
     s = actions.status()
 
     def fx(v):
+        # temperature -> display unit, humidity passes through
         return "--" if v is None else "{:.0f}".format(v)
 
-    # Line 0: indoor + outdoor temp/humidity, e.g. "I25/60 O15/80"
+    def ft(c):
+        if c is None:
+            return "--"
+        v = c * 9 / 5 + 32 if C.TEMP_UNIT == "F" else c
+        return "{:.0f}".format(v)
+
+    # Line 0: indoor + outdoor temp/humidity, e.g. "I77/60 O59/80"
     lcd.line(
         0,
         "I{}/{} O{}/{}".format(
-            fx(s["temp"]), fx(s["humid"]), fx(s["out_temp"]), fx(s["out_humid"])
+            ft(s["temp"]), fx(s["humid"]), ft(s["out_temp"]), fx(s["out_humid"])
         ),
     )
     # Line 1: actuator status

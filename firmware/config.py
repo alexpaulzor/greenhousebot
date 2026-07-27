@@ -52,6 +52,12 @@ BTN_DEBOUNCE_MS = 40
 LCD_COLS = 16
 LCD_ROWS = 2
 
+# --- Display units -------------------------------------------------------
+# Temperatures are stored/computed in Celsius (sensors, dew point, rules). This
+# only changes what HUMANS see (LCD + web + chart axis). "F" or "C".
+# Note: /data and the CSV exports stay in Celsius (canonical dataset for scraping).
+TEMP_UNIT = "F"
+
 # --- Timing --------------------------------------------------------------
 SAMPLE_MS = 2000  # how often to read the sensor + refresh LCD
 LOG_SAMPLE_MS = 60_000  # how often to push a temp/humidity sample to the ring buffer

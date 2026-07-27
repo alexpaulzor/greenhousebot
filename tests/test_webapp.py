@@ -20,6 +20,7 @@ class FakeActions:
             "fans": False,
             "mister": False,
             "auto": False,
+            "unit": "F",
             "time": 1000,
         }
         self.calls = []
@@ -139,6 +140,17 @@ def test_status_has_outdoor_and_auto():
     st, ct, body = W.route("GET", "/status", FakeActions())
     d = json.loads(body)
     assert "out_temp" in d and "out_humid" in d and "auto" in d
+
+
+def test_status_carries_unit_but_temp_stays_celsius():
+    # /status advertises the display unit; the temp VALUE stays canonical Celsius
+    # (client converts). CSV/JSON data stay Celsius too.
+    st, ct, body = W.route("GET", "/status", FakeActions())
+    d = json.loads(body)
+    assert d["unit"] == "F"
+    assert d["temp"] == 24.0  # still Celsius; not 75.2
+    _, _, csv = W.route("GET", "/data.csv", FakeActions())
+    assert "24.0" in csv.split("\n")[1]  # sample in_t stays Celsius
 
 
 def test_auto_toggle():
