@@ -13,8 +13,9 @@ Architecture (locked with the builder):
 - **Housing = a purchased, already-sealed plastic bin** mounted outdoors by the door,
   with a single cable gland. (A swappable LCD faceplate + MakerBeam module mounts are
   **deferred TODOs**, not in this BOM.)
-- **Sensor confirmed: AHT21** (I2C 0x38). **LCD run at 3.3 V**, so the whole I2C bus is
-  3.3 V and **no level shifter is needed**.
+- **Sensor confirmed: AHT21** (I2C 0x38) — **two of them**: indoor (I2C0 with the LCD)
+  and outdoor (I2C1 on GP2/3; separate bus because the address is fixed). **LCD run at
+  3.3 V**, so both buses are 3.3 V and **no level shifter is needed**.
 
 Prices are rough USD ballparks for hobby quantities; use them for sizing, not budgeting.
 
@@ -30,7 +31,7 @@ Prices are rough USD ballparks for hobby quantities; use them for sizing, not bu
 | # | Item | Qty | Notes | ~$ |
 |---|------|-----|-------|----|
 | 1 | Raspberry Pi Pico 2 W (with headers) | 1 | RP2350, Wi-Fi. Plugs into a screw-terminal expander (item 26) — **not soldered**. | 7 |
-| 2 | Temp/humidity sensor — **AHT21** (I2C, 0x38) | 1 | Confirmed part; 2.0–5.5 V, runs at 3.3 V. On the shared I2C bus with the LCD. Runs on a wire into the greenhouse. (Old DHT single-wire plan dropped.) | 2–4 |
+| 2 | Temp/humidity sensor — **AHT21** (I2C, 0x38) ×2 | 2 | Confirmed part; 2.0–5.5 V, runs at 3.3 V. **One indoor** (on I2C0 with the LCD) + **one outdoor** (on I2C1, GP2/3 — needs its own bus because 0x38 is a fixed address). Outdoor unit lets the firmware compare in/out conditions. | 2–4 ea |
 | 3 | I2C character LCD — **1602** | 1 | 16×2 with PCF8574 I2C backpack (0x27/0x3F). **Run at 3.3 V** so the whole bus is 3.3 V. 2004 is a firmware-only upgrade later. | 4–9 |
 | 4 | ~~2-channel I2C level shifter (BSS138)~~ | 0 | **Not needed** — LCD runs at 3.3 V, so the I2C bus is all 3.3 V. Keep one on hand only as a fallback if the LCD is too dim at 3.3 V. | — |
 | 5 | **2-channel relay module, native 3.3 V logic** (opto-isolated, low-level trigger) | 1 | e.g. the JESSINIE 3.3 V 2-ch board. ch1 = 12 V mister valve, ch2 = dry-contact mains trigger for the external outlet box. Native 3.3 V logic drives straight from the Pico. | 3–5 |

@@ -27,19 +27,24 @@ H-bridge), on a **Raspberry Pi Pico 2 W** with a 1602 LCD + 3 buttons.
 | [docs/WIRING.md](docs/WIRING.md) | **Solderless build guide** (buses, terminals, bring-up) |
 | [docs/BOM.md](docs/BOM.md) | Bill of materials + sizing |
 | [docs/PINOUT.md](docs/PINOUT.md) | Pico GPIO assignments (single source of truth) |
+| [firmware/README.md](firmware/README.md) | **Firmware** modules, flashing, web API |
 
 ## Status
 
-- [x] BOM finalized (AHT21, no level shifter, 12 V 5 A, terminal-block build)
-- [x] Pin mappings finalized
+- [x] BOM finalized (2× AHT21, no level shifter, 12 V 5 A, terminal-block build)
+- [x] Pin mappings finalized (two I2C buses for indoor + outdoor sensors)
 - [x] Connectivity / circuit (logical) — `docs/CONNECTIONS.md`
 - [x] Interconnect decided: **no PCB**, solderless terminal blocks — `docs/WIRING.md`
+- [x] Firmware — **manual MVP**: button toggles, LCD, LAN web control + scrape API,
+  bounded flash datalog. 26 host tests passing. See `firmware/README.md`.
 
 ### Deferred TODOs
-- Firmware (MicroPython) — control logic, menu, PWM for the actuator, I2C for AHT21 + LCD.
+- **Automation**: compare indoor vs outdoor readings to drive window/fans/mister
+  (wire up the parked `control.py`; extend rules). This is the next big piece.
+- Web charting of the logged data.
 - Laser-cut swappable LCD/button faceplate (1602 now, 2004 later).
 - MakerBeam (15×15) module-mount plates.
-- Confirm whether the window actuator has internal limit switches (else use GP13/14/15).
+- Confirm the window actuator's internal endstops (else use spare GP13/14/15).
 
 ---
 
