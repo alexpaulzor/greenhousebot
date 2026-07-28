@@ -17,3 +17,6 @@ fp-info-cache
 
 # firmware secrets (WiFi creds) — never commit
 firmware/secrets.py
+
+# Generated CNC toolpaths
+cad/build/
