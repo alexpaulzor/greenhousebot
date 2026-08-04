@@ -1,10 +1,11 @@
 """
-Hardware + behaviour configuration for the greenhouse controller (manual MVP).
+Hardware + behaviour configuration for the greenhouse controller.
 
-Pins follow docs/PINOUT.md exactly. This is a MANUAL-ONLY build: 3 buttons toggle
-window/fans/mister, an LCD shows temp/humidity, and a LAN web page mirrors that with
-remote toggles. No automation yet (see control.py, parked for the future two-sensor
-rules).
+Pins follow docs/PINOUT.md exactly. Three momentary buttons each CYCLE a per-actuator
+mode (see below), an LCD shows readings + modes, and a LAN web page mirrors that. The
+automation brain (control.py) is live: when a given actuator's mode is AUTO (and the
+global automation master is on) the controller drives it; any other mode is a manual
+override the controller leaves alone.
 
 Import-safe on CPython (no `machine` import) so tests can read it.
 """
@@ -27,10 +28,14 @@ PIN_SCL1 = 3  # GP3  (physical 5)
 I2C1_FREQ = 50_000  # half-speed for the long outdoor run (more capacitance margin)
 OUTDOOR_ENABLED = True  # set False if the outdoor sensor isn't wired yet
 
-# --- Relays (native 3.3 V, active-high IN on most 2-ch boards) ------------
+# --- Relays (native 3.3 V, active-high IN on most boards) -----------------
+# Three independent mains outlets, each switched by its own relay coil. The AC SSR
+# is gone: these mechanical relays are rated 10 A @ 125 V, well above fan/valve draw,
+# and mains stays in the steel J-box (only the 3.3 V coil signal crosses the wall).
 # If your board is active-LOW ("low-level trigger"), set RELAY_ACTIVE_HIGH=False.
-PIN_RELAY_VALVE = 16  # GP16 -> relay IN1 (mister valve)
-PIN_RELAY_FANS = 17  # GP17 -> relay IN2 (dry-contact mains trigger)
+PIN_RELAY_VALVE = 16  # GP16 -> mister solenoid valve
+PIN_RELAY_VENT = 17  # GP17 -> exhaust/vent fan  (blows out the passive auto-vent)
+PIN_RELAY_CIRC = 21  # GP21 -> interior air-circulation fan(s)
 RELAY_ACTIVE_HIGH = True
 
 # --- Window: BTS7960 H-bridge (actuator has internal endstops) ------------
@@ -44,14 +49,21 @@ WIN_DUTY = 0.9  # 0..1 drive duty while moving
 # WIN_TRAVEL_MS just needs to be >= real travel time; overshoot is harmless.
 WIN_TRAVEL_MS = 12_000  # MEASURE yours and set a bit above it
 
-# --- Buttons: 3 momentary, each a single-press TOGGLE --------------------
-# GP10 = window (open<->close, press-while-moving = stop), GP11 = fans, GP12 = mister.
+# --- Buttons: 3 momentary, each press CYCLES that actuator's mode ---------
+# GP10 window : AUTO -> OFF -> OPN -> CLS -> (AUTO)
+# GP11 fans   : AUTO -> OFF -> VNT -> CIR -> ALL -> (AUTO)   (VNT=vent, CIR=circulate)
+# GP12 mister : AUTO -> OFF -> ON  -> TIM -> (AUTO)          (TIM = run N min then AUTO)
 PIN_BTN_WINDOW = 10  # GP10
 PIN_BTN_FANS = 11  # GP11
 PIN_BTN_MISTER = 12  # GP12
 BTN_DEBOUNCE_MS = 40
 
 # --- LCD geometry --------------------------------------------------------
+# The built bezel is a 16x2. With IN/OUT and the button labels printed ON the bezel,
+# the top row is just the four readings and the bottom row is three mode fields, one
+# directly under each button. _draw() also supports 20x4 (set 20/4) if you re-bezel.
+# If you run the LCD at 5 V for contrast, isolate it with a BSS138 shifter so 5 V never
+# reaches the 3.3 V bus (the AHT21 stays on the 3.3 V side).
 LCD_COLS = 16
 LCD_ROWS = 2
 
@@ -66,10 +78,24 @@ SAMPLE_MS = 2000  # how often to read the sensor + refresh LCD
 LOG_SAMPLE_MS = 60_000  # how often to push a temp/humidity sample to the ring buffer
 
 # --- Automation ----------------------------------------------------------
-# Whether the control rules run at boot. Toggle at runtime via the web (POST
-# /auto) or a long-press gesture later. When off, the system is fully manual.
-AUTOMATION_DEFAULT = False  # ship manual-first; flip on from the web when ready
+# Global master switch: when off, the system is fully manual regardless of per-
+# actuator mode. When on, each actuator whose mode is AUTO is driven by the rules.
+# Toggle at runtime via the web (POST /auto).
+AUTOMATION_DEFAULT = False  # boot manual-first; flip on from the web when ready
 AUTO_TICK_MS = 5000  # how often the control rules evaluate
+
+# The passive auto-vent (wax-cylinder opener, NOT Pico-controlled) is the exhaust
+# fan's only air path: run the vent fan while it's shut and you get noise, no flow.
+# We have no sensor on it, so we gate the vent fan on temperature as a proxy for
+# "the auto-vent has opened." Set this to your opener's approximate opening temp.
+AUTO_VENT_OPEN_C = 24.0
+
+# Mister runs in short bursts, not continuously (constant misting drips; off dries
+# out fast). When the rules want humidity, the mister pulses BURST_S on / GAP_S off.
+MIST_BURST_S = 5
+MIST_GAP_S = 60
+# Manual TIM button mode: run the mister this many minutes, then revert to AUTO.
+MIST_TIMER_MIN = 10
 
 # --- Data log sizes (in-RAM ring buffers) --------------------------------
 SAMPLE_RING = 240  # ~4 h at 60 s/sample
@@ -82,6 +108,13 @@ LOG_PERSIST = True
 LOG_DIR = "logs"
 LOG_FILE_MAX_BYTES = 64 * 1024  # per file before rotation
 LOG_FILE_KEEP = 4  # rotated generations kept (oldest deleted)
+
+# --- Web-adjustable settings (settings.py) -------------------------------
+# The behavioural tuning knobs (seasonal setpoints, vent/mist timings, safety
+# limits, display unit) are editable from the web page and persisted here as JSON,
+# overlaid on the defaults at boot. The pins/I2C/log/WiFi constants above stay
+# fixed in code on purpose — they're build-time, not day-to-day tuning.
+SETTINGS_FILE = "settings.json"  # flash root; survives a logs/ wipe
 
 # --- Web server ----------------------------------------------------------
 WEB_PORT = 80

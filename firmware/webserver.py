@@ -31,6 +31,9 @@ class WebServer:
             return False  # nothing pending
         try:
             conn.settimeout(2)
+            # One recv, no drain loop: only the request LINE is parsed (we ignore any
+            # body), and the longest one we emit — POST /settings?... with every field —
+            # is ~0.5 KB, well under this. If the settings surface grows a lot, revisit.
             req = conn.recv(1024)
             if req:
                 method, path = _parse_request_line(req)

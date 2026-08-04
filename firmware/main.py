@@ -1,15 +1,17 @@
 """
-Greenhouse controller — MicroPython entry point (Pico 2 W). MANUAL-ONLY MVP.
+Greenhouse controller — MicroPython entry point (Pico 2 W).
 
 Behaviour:
-  * 3 buttons single-press TOGGLE window / fans / mister.
-  * LCD shows temp + humidity (+ status line).
-  * LAN web page mirrors readings + status and offers remote toggles.
+  * 3 buttons cycle per-actuator MODES: window (AUTO/OFF/OPN/CLS), fans
+    (AUTO/OFF/VNT/CIR/ALL), mister (AUTO/OFF/ON/TIM). See actions.py.
+  * LCD shows indoor+outdoor temp/humidity plus each actuator's mode + state.
+  * LAN web page mirrors readings + modes and offers the same controls.
   * Every actuation and periodic sample is logged (in-RAM ring buffers, JSON at /data).
-  * No automation yet — control.py is parked for the future two-sensor rules.
+  * Automation is live: when the master is on, each AUTO-mode actuator is driven by
+    control.py; manual modes are left alone.
 
-Structure: `Actions` is the single place that performs an actuation (from a button
-OR the web) and logs it, so both input paths behave identically. The main loop is
+Structure: `Actions` is the single place that performs an actuation (from a button OR
+the web) and logs it, so both input paths behave identically. The main loop is
 cooperative and non-blocking: sensor read on a timer, window move serviced each pass,
 web served each pass, watchdog fed each pass.
 """
@@ -25,6 +27,7 @@ from actions import Actions
 from buttons import Buttons, WINDOW, FANS, MISTER
 from datalog import DataLog
 from control import Controller
+from settings import Settings
 import wifi
 
 
@@ -60,7 +63,8 @@ def main():
             print("outdoor sensor init failed:", e)
 
     valve = Relay(C.PIN_RELAY_VALVE, C.RELAY_ACTIVE_HIGH)
-    fans = Relay(C.PIN_RELAY_FANS, C.RELAY_ACTIVE_HIGH)
+    vent = Relay(C.PIN_RELAY_VENT, C.RELAY_ACTIVE_HIGH)
+    circ = Relay(C.PIN_RELAY_CIRC, C.RELAY_ACTIVE_HIGH)
     window = Window()
     buttons = Buttons()
 
@@ -90,10 +94,36 @@ def main():
             print("log persistence disabled:", e)
 
     log = DataLog(_clock, C.SAMPLE_RING, C.EVENT_RING, sample_sink, event_sink)
+
+    # --- web-adjustable settings (persisted to flash, overlaid on defaults) ---
+    settings = Settings()
+    try:
+        from fsadapter import FsAdapter
+
+        settings_fs = FsAdapter(".")  # settings.json at flash root
+        settings.load(settings_fs, C.SETTINGS_FILE)
+
+        def _save_settings():
+            settings.save(settings_fs, C.SETTINGS_FILE)
+
+    except Exception as e:
+        print("settings persistence disabled:", e)
+        _save_settings = None
+
     actions = Actions(
-        window, fans, valve, log, _clock, C.AUTOMATION_DEFAULT, C.TEMP_UNIT
+        window,
+        vent,
+        circ,
+        valve,
+        log,
+        _clock,
+        C.AUTOMATION_DEFAULT,
+        C.TEMP_UNIT,
+        C.MIST_TIMER_MIN,
+        settings=settings,
+        save_settings=_save_settings,
     )
-    controller = Controller()
+    controller = Controller(settings=settings)
 
     lcd.line(0, "Greenhouse")
     lcd.line(1, "starting...")
@@ -121,8 +151,10 @@ def main():
     while True:
         # window move progresses without blocking
         window.service()
+        # expire the mister TIM timer (reverts to AUTO) if it's running
+        actions.service()
 
-        # buttons -> toggles (logged as source="manual")
+        # buttons -> cycle that actuator's mode (logged as source="manual")
         for ev in buttons.poll():
             if ev == WINDOW:
                 actions.window(None, source="manual")
@@ -160,7 +192,8 @@ def main():
                     humid,
                     out_temp,
                     out_humid,
-                    fans=fans.is_on,
+                    vent=vent.is_on,
+                    circ=circ.is_on,
                     mist=valve.is_on,
                     window=window.status(),
                 )
@@ -194,36 +227,82 @@ def _read(sensor, label):
         return None, None
 
 
+def _row(lcd, row, left, right=""):
+    """Write one LCD row, right-justifying `right`, padded/truncated to LCD_COLS so
+    stale characters from a previous frame are always overwritten."""
+    w = C.LCD_COLS
+    if right:
+        gap = w - len(left) - len(right)
+        text = left + (" " * gap if gap >= 1 else " ") + right
+    else:
+        text = left
+    lcd.line(row, text.ljust(w)[:w])
+
+
 def _draw(lcd, actions):
     s = actions.status()
-
-    def fx(v):
-        # temperature -> display unit, humidity passes through
-        return "--" if v is None else "{:.0f}".format(v)
+    unit = s.get("unit", C.TEMP_UNIT)  # live display unit (web-adjustable)
 
     def ft(c):
         if c is None:
             return "--"
-        v = c * 9 / 5 + 32 if C.TEMP_UNIT == "F" else c
+        v = c * 9 / 5 + 32 if unit == "F" else c
         return "{:.0f}".format(v)
 
-    # Line 0: indoor + outdoor temp/humidity, e.g. "I77/60 O59/80"
-    lcd.line(
-        0,
-        "I{}/{} O{}/{}".format(
-            ft(s["temp"]), fx(s["humid"]), ft(s["out_temp"]), fx(s["out_humid"])
-        ),
-    )
-    # Line 1: actuator status
-    win = {"open": "O", "closed": "C", "opening": ">", "closing": "<", "unknown": "?"}
-    lcd.line(
-        1,
-        "W:{} F:{} M:{}".format(
-            win.get(s["window"], "?"),
-            "1" if s["fans"] else "0",
-            "1" if s["mister"] else "0",
-        ),
-    )
+    def fh(v):
+        return "--" if v is None else "{:.0f}".format(v)
+
+    pos = {
+        "open": "OPEN",
+        "closed": "CLOSED",
+        "opening": "OPENING",
+        "closing": "CLOSING",
+        "unknown": "?",
+    }.get(s["window"], "?")
+
+    if C.LCD_ROWS >= 4:
+        # 20x4: readings + every mode at a glance. "+" marks a live relay in AUTO.
+        _row(
+            lcd,
+            0,
+            "IN  {}{} {}%".format(ft(s["temp"]), unit, fh(s["humid"])),
+            "AUTO" if s["auto"] else "MAN",
+        )
+        _row(lcd, 1, "OUT {}{} {}%".format(ft(s["out_temp"]), unit, fh(s["out_humid"])))
+        _row(lcd, 2, "WIN {}".format(s["win_mode"]), pos)
+        fanx = "+" if (s["vent"] or s["circ"]) else ""
+        misx = "+" if s["mister"] else ""
+        _row(
+            lcd,
+            3,
+            "FAN {}{}".format(s["fan_mode"], fanx),
+            "MIS {}{}".format(s["mis_mode"], misx),
+        )
+    else:
+        # 16x2 on the built bezel: IN/OUT and the W/F/M button labels are printed ON
+        # the bezel, so the LCD shows only data. Top row = four readings (inside left
+        # half, outside right half). Bottom row = three mode fields, each centered in
+        # its third directly ABOVE its button. Buttons L->R: red=window, white=fans,
+        # blue=mister (matches this field order). The window field appends a position
+        # glyph (O/C/>/<) so you can see the sash even while its mode is AUTO.
+        half = C.LCD_COLS // 2
+        inside = "{}{} {}%".format(ft(s["temp"]), unit, fh(s["humid"]))
+        outside = "{}{} {}%".format(ft(s["out_temp"]), unit, fh(s["out_humid"]))
+        _row(lcd, 0, inside.ljust(half) + outside)
+
+        posg = {"open": "O", "closed": "C", "opening": ">", "closing": "<"}.get(
+            s["window"], "?"
+        )
+        f_win = s["win_mode"] + posg
+        f_fan = s["fan_mode"] + ("+" if (s["vent"] or s["circ"]) else "")
+        if s["mis_mode"] == "TIM" and s["mis_left"] is not None:
+            f_mis = "TIM{}".format(s["mis_left"])
+        else:
+            f_mis = s["mis_mode"] + ("+" if s["mister"] else "")
+        base = C.LCD_COLS // 3
+        rem = C.LCD_COLS % 3
+        w0, w1, w2 = base, base + rem, base  # remainder to the middle field
+        _row(lcd, 1, f_win.center(w0) + f_fan.center(w1) + f_mis.center(w2))
 
 
 if __name__ == "__main__":

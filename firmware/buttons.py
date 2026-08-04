@@ -1,9 +1,10 @@
 """
-Button input: 3 momentary buttons to GND (internal pull-ups), each a single-press
-TOGGLE. Poll-based with debounce. Emits one event per press (falling edge); no
-auto-repeat (toggles must not fire twice on a hold).
+Button input: 3 momentary buttons to GND (internal pull-ups). Each press CYCLES that
+actuator's mode (window/fans/mister — see actions.py). Poll-based with debounce; one
+event per press (falling edge), no auto-repeat so a hold can't advance twice.
 
-Events: "window", "fans", "mister".
+Events: "window", "fans", "mister" — main.py maps each to actions.<name>(None), which
+advances that actuator's mode by one step.
 """
 
 import time

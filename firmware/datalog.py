@@ -5,8 +5,8 @@ interventions, with an optional bounded, rotating CSV persistence sink on flash.
 Pure logic where it matters (host-tested). Time is supplied by a `now()` callable so
 tests are deterministic and we don't care whether NTP synced or we're boot-relative.
 
-Samples carry BOTH sensors:
-    {"t", "in_t", "in_h", "out_t", "out_h"}   (any value may be None on fault)
+Samples carry BOTH sensors + actuator state:
+    {"t", "in_t", "in_h", "out_t", "out_h", "vent", "circ", "mist", "win"}
 Events:
     {"t", "src", "dev", "act", "in_t", "in_h", "out_t", "out_h"}
 
@@ -84,7 +84,7 @@ class RotatingCsv:
         self.fs.rename(self.path, "{}.1".format(self.path))
 
 
-SAMPLE_HEADER = "t,in_t,in_h,out_t,out_h,fans,mist,win"
+SAMPLE_HEADER = "t,in_t,in_h,out_t,out_h,vent,circ,mist,win"
 EVENT_HEADER = "t,src,dev,act,in_t,in_h,out_t,out_h"
 
 
@@ -113,11 +113,19 @@ class DataLog:
         self._event_sink = event_sink
 
     def sample(
-        self, in_t, in_h, out_t=None, out_h=None, fans=None, mist=None, window=None
+        self,
+        in_t,
+        in_h,
+        out_t=None,
+        out_h=None,
+        vent=None,
+        circ=None,
+        mist=None,
+        window=None,
     ):
         """Record a periodic reading + actuator state at that instant.
         Actuator state lets the chart draw on/open bars and enriches analysis.
-        fans/mist are bools (or None); window is "open"/"closed"/... (or None)."""
+        vent/circ/mist are bools (or None); window is "open"/"closed"/... (or None)."""
         win = _win_code(window)
         row = {
             "t": self._now(),
@@ -125,14 +133,25 @@ class DataLog:
             "in_h": in_h,
             "out_t": out_t,
             "out_h": out_h,
-            "fans": _b(fans),
+            "vent": _b(vent),
+            "circ": _b(circ),
             "mist": _b(mist),
             "win": win,
         }
         self.samples.add(row)
         if self._sample_sink:
             self._sample_sink.append(
-                [row["t"], in_t, in_h, out_t, out_h, row["fans"], row["mist"], win]
+                [
+                    row["t"],
+                    in_t,
+                    in_h,
+                    out_t,
+                    out_h,
+                    row["vent"],
+                    row["circ"],
+                    row["mist"],
+                    win,
+                ]
             )
 
     def event(

@@ -28,6 +28,7 @@ import config as C  # noqa: E402
 from actions import Actions  # noqa: E402
 from datalog import DataLog  # noqa: E402
 from control import Controller  # noqa: E402
+from settings import Settings  # noqa: E402
 
 
 # ----- fake hardware (same interface the real drivers expose) -----
@@ -122,19 +123,25 @@ class Sim:
         # simulated clock starts `hours_history` in the past so there's a chart on load
         self.sim_t = self.start_wall - hours_history * 3600
         self.win = FakeWindow()
-        self.fans = FakeRelay()
+        self.vent = FakeRelay()
+        self.circ = FakeRelay()
         self.valve = FakeRelay()
         self.log = DataLog(self._now, sample_size=1000, event_size=200)
+        # a live (in-memory) settings store so the web UI's Settings panel is
+        # exercisable in the sim; changes drive the controller but aren't persisted.
+        self.settings = Settings()
         self.actions = Actions(
             self.win,
-            self.fans,
+            self.vent,
+            self.circ,
             self.valve,
             self.log,
             self._now,
             automation=False,
             temp_unit=C.TEMP_UNIT,
+            settings=self.settings,
         )
-        self.controller = Controller()
+        self.controller = Controller(settings=self.settings)
         self.env = SimEnv(self.sim_t)
         self.lock = threading.Lock()
         self._seed(hours_history)
@@ -152,14 +159,16 @@ class Sim:
         """Advance the sim by `minutes`, one stable 60 s sub-step at a time. One
         sensor sample + one controller tick per simulated minute."""
         for _ in range(minutes):
+            fans_on = self.vent.is_on or self.circ.is_on
             tin, hin, tout, hout = self.env.step(
                 self.sim_t,
-                self.fans.is_on,
+                fans_on,
                 self.valve.is_on,
                 self.win.status() == "open",
             )
             self.sim_t += 60
             self.actions.set_readings(tin, hin, tout, hout)
+            self.actions.service()
             if self.actions.automation:
                 lt = _time.localtime(self.sim_t)
                 d = self.controller.tick(
@@ -177,7 +186,8 @@ class Sim:
                 hin,
                 tout,
                 hout,
-                fans=self.fans.is_on,
+                vent=self.vent.is_on,
+                circ=self.circ.is_on,
                 mist=self.valve.is_on,
                 window=self.win.status(),
             )

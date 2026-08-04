@@ -60,7 +60,7 @@ def test_ring_wraps_oldest_first():
 def test_dual_sensor_sample():
     clk = Clock()
     log = D.DataLog(clk, sample_size=4, event_size=4)
-    log.sample(24.5, 60, 15.0, 80, fans=True, mist=False, window="open")
+    log.sample(24.5, 60, 15.0, 80, vent=True, circ=False, mist=False, window="open")
     s = log.samples.items()[0]
     assert s == {
         "t": 1000,
@@ -68,7 +68,8 @@ def test_dual_sensor_sample():
         "in_h": 60,
         "out_t": 15.0,
         "out_h": 80,
-        "fans": 1,
+        "vent": 1,
+        "circ": 0,
         "mist": 0,
         "win": 1,
     }
@@ -79,10 +80,10 @@ def test_sample_actuator_state_optional_and_coded():
     log = D.DataLog(clk, sample_size=4)
     log.sample(20, 50)  # no outdoor, no actuator state
     s = log.samples.items()[0]
-    assert s["out_t"] is None and s["fans"] is None and s["win"] is None
-    log.sample(21, 51, window="closed", fans=False, mist=True)
+    assert s["out_t"] is None and s["vent"] is None and s["win"] is None
+    log.sample(21, 51, window="closed", vent=False, circ=True, mist=True)
     s2 = log.samples.items()[1]
-    assert s2["win"] == 0 and s2["mist"] == 1 and s2["fans"] == 0
+    assert s2["win"] == 0 and s2["mist"] == 1 and s2["vent"] == 0 and s2["circ"] == 1
 
 
 def test_event_with_context():
@@ -134,10 +135,10 @@ def test_datalog_persists_via_sink():
     fs = FakeFs()
     sink = D.RotatingCsv("logs/s.csv", D.SAMPLE_HEADER, fs, max_bytes=10000)
     log = D.DataLog(Clock(), sample_sink=sink)
-    log.sample(21.0, 51, 10.0, 61, fans=True, mist=False, window="open")
+    log.sample(21.0, 51, 10.0, 61, vent=True, circ=False, mist=False, window="open")
     content = fs.files["logs/s.csv"]
-    assert content.startswith("t,in_t,in_h,out_t,out_h,fans,mist,win\n")
-    assert "1000,21.0,51,10.0,61,1,0,1" in content
+    assert content.startswith("t,in_t,in_h,out_t,out_h,vent,circ,mist,win\n")
+    assert "1000,21.0,51,10.0,61,1,0,0,1" in content
 
 
 def _run_all():
