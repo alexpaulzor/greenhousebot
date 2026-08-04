@@ -1,5 +1,13 @@
 # Circuit Diagram — Greenhouse Controller
 
+> ⚠️ **SUPERSEDED — historical PCB path.** This documents the earlier milled-PCB direction
+> and its **old** part choices (DHT22 sensor, BSS138 level shifter, 2-channel relay, +/−/OK
+> buttons). The build has since changed: **AHT21 ×2** sensors, **LCD at 3.3 V (no shifter)**,
+> **three mechanical relays** (valve / vent fan / circ fan), **mode-cycle buttons**, and **no
+> PCB** (solderless). For the current circuit use **[CONNECTIONS.md](CONNECTIONS.md)** (live
+> pin-to-pin + per-wire checklist), **[WIRING.md](WIRING.md)**, and **[PINOUT.md](PINOUT.md)**.
+> Kept only as a learning artifact of the dropped PCB toolchain.
+
 This is the schematic in two forms:
 
 1. A **block schematic** (mermaid) for the mental model.

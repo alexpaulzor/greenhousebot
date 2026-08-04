@@ -21,6 +21,7 @@ flowchart LR
     P_SCL1["GP3 SCL1 p5"]
     P_R1["GP16 p21"]
     P_R2["GP17 p22"]
+    P_R3["GP21 p27"]
     P_RP["GP18 p24"]
     P_LP["GP19 p25"]
     P_EN["GP20 p26"]
@@ -51,15 +52,18 @@ flowchart LR
     L_SCL["SCL"]
   end
 
-  subgraph RLY["2-ch relay 3.3V (K1)"]
+  subgraph RLY["3-ch relay 3.3V (relay J-box)"]
     K_V["VCC 3V3"]
     K_G["GND"]
     K_1["IN1 valve"]
-    K_2["IN2 mains"]
+    K_2["IN2 vent fan"]
+    K_3["IN3 circ fan"]
     K_C1["CH1 COM"]
     K_NO1["CH1 NO"]
     K_C2["CH2 COM"]
     K_NO2["CH2 NO"]
+    K_C3["CH3 COM"]
+    K_NO3["CH3 NO"]
   end
 
   subgraph HB["BTS7960 H-bridge (U3)"]
@@ -75,16 +79,17 @@ flowchart LR
     H_MG["M-"]
   end
 
-  subgraph BTN["Buttons (screw terminals) - toggles"]
+  subgraph BTN["Buttons (screw terminals) - mode cycle"]
     BTN_W["window btn"]
     BTN_F["fans btn"]
     BTN_M["mister btn"]
     BTN_G["common GND"]
   end
 
-  VALVE["12V valve"]
+  VALVE["12V DC valve"]
   ACT["window actuator"]
-  MAINS["external mains box trigger IN"]
+  VENT["vent fan mains outlet (mains J-box)"]
+  CIRC["circ fan mains outlet (mains J-box)"]
 
   %% ---- 12V rail ----
   PSU_V --> B_IN
@@ -126,14 +131,17 @@ flowchart LR
   %% ---- relay logic ----
   P_R1 --> K_1
   P_R2 --> K_2
+  P_R3 --> K_3
 
-  %% ---- valve (12V switched by CH1) ----
+  %% ---- valve (12V DC switched by CH1) ----
   K_NO1 --> VALVE
   VALVE --> PSU_G
 
-  %% ---- mains trigger (CH2 dry contact) ----
-  K_C2 --> MAINS
-  K_NO2 --> MAINS
+  %% ---- fan mains outlets (CH2/CH3 dry contacts, mains J-box) ----
+  K_C2 --> VENT
+  K_NO2 --> VENT
+  K_C3 --> CIRC
+  K_NO3 --> CIRC
 
   %% ---- H-bridge control ----
   P_RP --> H_RP

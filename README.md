@@ -1,7 +1,8 @@
 # greenhousebot
 
 Controller for a greenhouse: temperature/humidity-driven **misters** (12 V valve),
-**fans** (mains, switched externally), and **window** (12 V linear actuator via
+**fans** (mains, switched externally) — an **exhaust/vent** fan and an **interior
+circulation** fan on independent relays — and a **window** (12 V linear actuator via
 H-bridge), on a **Raspberry Pi Pico 2 W** with a 1602 LCD + 3 buttons.
 
 ## Architecture (current)
@@ -10,12 +11,15 @@ H-bridge), on a **Raspberry Pi Pico 2 W** with a 1602 LCD + 3 buttons.
 - **No PCB — solderless terminal-block build.** The circuit is power-rail fan-out + a
   2-wire I2C bus, so a **Pico screw-terminal expander** + **Wago lever-nuts** do the
   interconnect. Nothing sensitive is soldered. See **[docs/WIRING.md](docs/WIRING.md)**.
-- **Mains AC never enters the box**: the Pico closes a dry-contact relay that drives a
-  separate, properly-rated external outlet box for the fans.
+- **Mains AC stays in mains-rated J-boxes**: a **3-channel 3.3 V relay board** (valve /
+  vent fan / circ fan; mechanical, 10 A @ 125 V — no SSR) lives in a **relay J-box**, with a
+  stacked **mains J-box** holding the incoming mains + two switched fan outlets. Only the
+  relay coil side + the 12 V DC valve feed cross in from the logic box.
 - **Single 12 V 5 A PSU** → valve + H-bridge + a buck to 5 V for the Pico.
-- **Sensor**: AHT21 (I2C 0x38). **LCD run at 3.3 V** → whole I2C bus is 3.3 V, **no
-  level shifter**.
-- **Buttons**: your panel-mount momentary buttons wire in via screw terminals.
+- **Sensors**: **two AHT21** (I2C 0x38) — indoor (I2C0, with the LCD) + outdoor (I2C1, own
+  bus, long run). **LCD run at 3.3 V** → whole I2C bus is 3.3 V, **no level shifter**.
+- **Buttons**: three panel-mount momentaries; each press **cycles** its actuator's mode
+  (window / fans / mister). Wire in via screw terminals.
 - **Housing**: a purchased sealed plastic bin, mounted outdoors by the door, one gland.
   (Swappable LCD faceplate + MakerBeam module mounts are deferred TODOs.)
 
@@ -35,13 +39,13 @@ H-bridge), on a **Raspberry Pi Pico 2 W** with a 1602 LCD + 3 buttons.
 - [x] Pin mappings finalized (two I2C buses for indoor + outdoor sensors)
 - [x] Connectivity / circuit (logical) — `docs/CONNECTIONS.md`
 - [x] Interconnect decided: **no PCB**, solderless terminal blocks — `docs/WIRING.md`
-- [x] Firmware — **manual MVP**: button toggles, LCD, LAN web control + scrape API,
-  bounded flash datalog. 26 host tests passing. See `firmware/README.md`.
+- [x] Firmware — button mode-cycles, LCD, LAN web control + scrape API, bounded flash
+  datalog, **live automation** (per-actuator AUTO/manual modes driven by `control.py`),
+  a **web chart** of the logged data, and **web-adjustable settings** (setpoints/timings
+  tunable from the page, persisted to flash). 68 host tests passing. See `firmware/README.md`.
 
 ### Deferred TODOs
-- **Automation**: compare indoor vs outdoor readings to drive window/fans/mister
-  (wire up the parked `control.py`; extend rules). This is the next big piece.
-- Web charting of the logged data.
+- Threshold **hysteresis** (deadbands) if the logs show actuator chatter at a setpoint.
 - Laser-cut swappable LCD/button faceplate (1602 now, 2004 later).
 - MakerBeam (15×15) module-mount plates.
 - Confirm the window actuator's internal endstops (else use spare GP13/14/15).

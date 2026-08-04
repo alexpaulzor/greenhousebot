@@ -5,8 +5,16 @@ distribute it with screw terminals and lever-nuts. Nothing sensitive is soldered
 
 Reflects: **two AHT21 sensors** (indoor on I2C0 with the LCD; outdoor on I2C1 — separate
 bus, fixed 0x38 address, **long >3 m run**), **LCD at 3.3 V** (**no level shifter**),
-**Pico in a screw-terminal expander**, **panel buttons via terminals as toggles**,
-**fans via a 3V3-relay → 12 V → local AC-SSR chain**, **12 V 5 A PSU**.
+**Pico in a screw-terminal expander**, **panel buttons via terminals (mode-cycle)**,
+**three mechanical relays** (valve + vent fan + circ fan) in a **mains-rated relay J-box**
+(no AC SSR), **12 V 5 A PSU**.
+
+> **Box layout.** Three stacked enclosures: a low-voltage **logic box** (Pico, buck,
+> H-bridge, sensors, LCD, buttons, lever-nut buses); a **relay J-box** in the middle (the
+> 3-ch relay board); a **mains J-box** (incoming mains + the vent & circ fan outlets). Both
+> J-boxes are commercial mains-rated. Only the relay coil side (3V3, GND, IN1/IN2/IN3) and
+> the **12 V DC valve feed** cross into the relay J-box; mains stays between the two J-boxes.
+> Per-wire checklist with unique IDs: `docs/CONNECTIONS.md`.
 
 There are two views below: **by net/bus** (how to build the power distribution) and
 **by component** (every wire per device, with conductor suggestions).
@@ -31,7 +39,7 @@ Make three lever-nut "buses". Wire gauge: **18 AWG for 12 V / motor**, 22–24 A
 | in | PSU **+12 V** |
 | out | **Buck IN+** |
 | out | **BTS7960 B+** (motor supply) |
-| out | **Relay CH1 COM** (valve switching) |
+| out | **Relay CH1 COM** (12 V DC valve feed — crosses to the relay J-box) |
 
 ### GND bus (from PSU GND) — 5-way + 3-way lever-nuts chained
 | Terminal | Goes to |
@@ -72,15 +80,16 @@ Make three lever-nut "buses". Wire gauge: **18 AWG for 12 V / motor**, 22–24 A
 | **GP5 (p7)**  | **indoor** AHT21 **SCL** + LCD **SCL** | I2C0 clock |
 | **GP2 (p4)**  | **outdoor** AHT21 **SDA** | I2C1 data (own bus) |
 | **GP3 (p5)**  | **outdoor** AHT21 **SCL** | I2C1 clock |
-| **GP16 (p21)**| Relay **IN1** | mister valve |
-| **GP17 (p22)**| Relay **IN2** | mains-box trigger (fans) |
+| **GP16 (p21)**| Relay **IN1** | mister valve (12 V DC) |
+| **GP17 (p22)**| Relay **IN2** | **vent** (exhaust) fan — mains outlet |
+| **GP21 (p27)**| Relay **IN3** | **circ** (circulation) fan — mains outlet |
 | **GP18 (p24)**| BTS7960 **RPWM** | window open |
 | **GP19 (p25)**| BTS7960 **LPWM** | window close |
 | **GP20 (p26)**| BTS7960 **R_EN + L_EN** (jumper both) | H-bridge enable |
 | **GP26 (p31)**| BTS7960 **R_IS + L_IS** | current sense (optional) |
-| **GP10 (p14)**| Window button (other leg → GND bus) | toggle window open/close |
-| **GP11 (p15)**| Fans button (other leg → GND bus) | toggle fans on/off |
-| **GP12 (p16)**| Mister button (other leg → GND bus) | toggle mister on/off |
+| **GP10 (p14)**| Window button (other leg → GND bus) | cycle window mode AUTO/OFF/OPN/CLS |
+| **GP11 (p15)**| Fans button (other leg → GND bus) | cycle fans mode AUTO/OFF/VNT/CIR/ALL |
+| **GP12 (p16)**| Mister button (other leg → GND bus) | cycle mister mode AUTO/OFF/ON/TIM |
 
 The indoor I2C0 lines each land on **two** module terminals (indoor AHT21 + LCD) —
 daisy-chain or use a small lever-nut per line. The **outdoor AHT21 needs its own bus
@@ -90,31 +99,34 @@ daisy-chain or use a small lever-nut per line. The **outdoor AHT21 needs its own
 
 | From | To |
 |------|----|
-| **Relay CH1 NO** | valve **+** (valve **−** → GND bus) |
-| **Relay CH2 COM + NO** | **long run → local AC-SSR input** at the fan enclosure (see below) |
+| **Relay CH1 NO** | valve **+** (valve **−** → GND bus) — 12 V DC |
+| **Relay CH2 NO / COM** | **vent** fan mains outlet (in the mains J-box) |
+| **Relay CH3 NO / COM** | **circ** fan mains outlet (in the mains J-box) |
 | **BTS7960 M+ / M−** | window actuator leads |
 
-### Fans: two-stage relay chain (why, and how)
+### Fans: three mechanical relays, no SSR (why, and how)
 
-You are **not** driving the mains directly, and not driving an SSR's DC input from
-3.3 V over a long cable (marginal/flaky — many SSRs want >4 V, ~15 mA). Instead:
+Earlier revisions drove a long 12 V signal to a **local AC SSR**. That's gone. The relays are
+now **mechanical, rated 10 A @ 125 V** — comfortably above fan draw — and they switch the
+mains fan outlets **directly**, one relay per fan:
 
 ```
-Pico GP17 --> 3V3 relay CH2 (dry contact) --switches--> +12V signal
-     |                                                      |  long run (2 wires)
-     |                                                      v
-     +--(logic, short)                          local AC SSR DC input (+/-)
-                                                            |
-                                                 AC SSR switches mains --> fan outlets
+Pico GP17 --> Relay IN2 --coil--> CH2 dry contact --switches--> vent fan mains outlet
+Pico GP21 --> Relay IN3 --coil--> CH3 dry contact --switches--> circ fan mains outlet
+                (3.3 V logic side)          (mains side, in the mains-rated J-box)
 ```
 
-- The **3V3 mechanical relay CH2** just closes a **dry contact**. Wire its **COM to +12 V**
-  (from the 12 V bus) and its **NO to the long-run conductor**; the return is a shared GND.
-- At the fan enclosure, that **+12 V (switched) + GND** drives the **AC SSR's DC input**
-  (use a 12 V-input SSR, or a 3–32 V DC-input SSR — 12 V sits comfortably in range).
-- The SSR (mains-rated, in/adjacent to the mains enclosure) switches the fan outlets.
-- Result: robust 12 V signal over distance, full galvanic isolation twice over, and no
-  mains anywhere near the logic box. The "double relay" is the *right* call, not overkill.
+- The **relay board sits in the mains-rated relay J-box**. Only its **coil side** crosses in
+  from the logic box: VCC (3V3), GND, IN1/IN2/IN3 — plus the **12 V DC valve feed** to CH1.
+- **CH2/CH3** each close a dry contact on the mains **hot**: wire **COM to mains L**, **NO to
+  the outlet hot**; neutral + ground go straight to the outlets. Do this in the J-boxes to
+  code.
+- Result: two independently-switched fan outlets, full mechanical isolation, and **no mains in
+  the logic box** — without the SSR, the long 12 V signal run, or the extra enclosure.
+
+> Why two fan relays: the firmware controls **vent** (exhaust, temperature-gated) and **circ**
+> (interior circulation, never gated) independently — see `docs/RULES.md`. `ALL` mode / the H2
+> and S3 rules energize both at once.
 
 ---
 
@@ -146,7 +158,7 @@ current-sensitive runs; short signal hops can be any 22–26 AWG hookup wire.
 | GND (p38) | GND bus | 22 AWG |
 | GP4 / GP5 | indoor AHT21 + LCD SDA/SCL | 24 AWG |
 | GP2 / GP3 | outdoor AHT21 SDA/SCL | **see outdoor sensor** |
-| GP16 / GP17 | Relay IN1 / IN2 | 24 AWG |
+| GP16 / GP17 / GP21 | Relay IN1 / IN2 / IN3 | 24 AWG |
 | GP18 / GP19 / GP20 | BTS7960 RPWM / LPWM / EN | 24 AWG |
 | GP26 | BTS7960 IS (optional) | 24 AWG |
 | GP10 / GP11 / GP12 | window / fans / mister buttons | 24 AWG |
@@ -180,17 +192,18 @@ current-sensitive runs; short signal hops can be any 22–26 AWG hookup wire.
 > - If it ever misbehaves at length, add a **P82B715 I2C extender** pair (drives tens of
 >   metres) — no code change beyond addressing.
 
-### 2-channel 3V3 relay module
+### 3-channel 3V3 relay module (in the relay J-box)
 | Wire | To | Conductor |
 |------|----|-----------|
-| VCC | 3V3 bus | 24 AWG |
-| GND | GND bus | 24 AWG |
+| VCC | 3V3 bus (crosses from logic box) | 22 AWG |
+| GND | GND bus (crosses from logic box) | 22 AWG |
 | IN1 | Pico GP16 | 24 AWG |
 | IN2 | Pico GP17 | 24 AWG |
-| CH1 COM | 12 V bus | 20 AWG |
+| IN3 | Pico GP21 | 24 AWG |
+| CH1 COM | 12 V bus (valve feed) | 18–20 AWG |
 | CH1 NO | valve **+** | 18–20 AWG (valve run) |
-| CH2 COM | 12 V bus | 20 AWG |
-| CH2 NO | **long run → AC SSR DC input +** | **18 AWG, 2-cond outdoor cable** |
+| CH2 COM / NO | mains L / vent outlet hot | 14 AWG / to code (mains) |
+| CH3 COM / NO | mains L / circ outlet hot | 14 AWG / to code (mains) |
 
 ### Mister solenoid valve (12 V)
 | Wire | To | Conductor |
@@ -217,16 +230,18 @@ current-sensitive runs; short signal hops can be any 22–26 AWG hookup wire.
 | R_IS + L_IS | Pico GP26 (optional) | 24 AWG |
 | M+ / M− | window actuator | 18 AWG |
 
-### Local AC SSR (at the mains/fan enclosure — long run terminates here)
+### Mains fan outlets (in the mains J-box — mains side of CH2/CH3)
 | Wire | To | Conductor |
 |------|----|-----------|
-| DC input + | **long run from Relay CH2 NO** (+12 V switched) | 18 AWG (from box) |
-| DC input − | GND (run alongside, or local mains-box GND ref) | 18 AWG |
-| AC load | fan outlets (mains) | mains-rated, per code |
+| mains L | Relay CH2 COM (vent) **and** CH3 COM (circ) | 14 AWG / to code |
+| Relay CH2 NO | vent fan outlet **hot** | 14 AWG / to code |
+| Relay CH3 NO | circ fan outlet **hot** | 14 AWG / to code |
+| mains N | both outlets **neutral** | 14 AWG / to code |
+| mains GND | both outlets **ground** | 14 AWG green / to code |
 
-> ⚠️ Mains wiring on the SSR's load side is done in the **mains-rated enclosure** to
-> local electrical code. Only the **low-voltage 12 V pair** enters/leaves that box on the
-> long run.
+> ⚠️ Mains wiring lives in the **mains-rated J-boxes** only, to local electrical code. The
+> relay board's coil side (VCC/GND/IN1-3) + the 12 V DC valve feed are the only things that
+> cross in from the low-voltage logic box.
 
 ### LCD 1602 (I2C0, panel)
 | Wire | To | Conductor |
@@ -245,10 +260,11 @@ current-sensitive runs; short signal hops can be any 22–26 AWG hookup wire.
 
 ## Buttons (your panel-mount momentary + flying leads)
 
-Three buttons, each a single-press **toggle** (window / fans / mister). Each button =
-two wires: one to its **Pico GP terminal** (GP10/GP11/GP12), one to the **GND bus**. The
-Pico uses internal pull-ups (`Pin.PULL_UP`), so **no resistors** and polarity doesn't
-matter. Land all three GND legs on one 3-way lever-nut into the GND bus if you like.
+Three buttons, each a single-press **mode cycle** (window / fans / mister — see
+`docs/RULES.md` for the per-actuator mode order). Each button = two wires: one to its **Pico
+GP terminal** (GP10/GP11/GP12), one to the **GND bus**. The Pico uses internal pull-ups
+(`Pin.PULL_UP`), so **no resistors** and polarity doesn't matter. Land all three GND legs on
+one 3-way lever-nut into the GND bus if you like.
 
 ## Build order (safe bring-up)
 
@@ -259,8 +275,9 @@ matter. Land all three GND legs on one 3-way lever-nut into the GND bus if you l
    **0x27/0x3F**. Then wire I2C1 (outdoor AHT21) with its **2.2 kΩ pull-ups at the Pico
    end**; `machine.I2C(1).scan()` — expect **0x38**. If it doesn't show up, check the
    pull-ups first, then cable length / a P82B715 extender.
-5. Add the relay, then the fan chain: verify CH2 closes → 12 V appears on the long run →
-   SSR clicks the fans. Then the H-bridge (window jog at low PWM), then the valve.
+5. Add the relay board (coil side), then verify each channel: CH1 clicks the 12 V valve,
+   CH2 and CH3 switch their mains fan outlets (check with the mains J-box wired to code).
+   Then the H-bridge (window jog at low PWM).
 6. Buttons last.
 
 ## Spare / notes
